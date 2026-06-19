@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'departments',
     'rest_framework',
     'corsheaders',
+    'grievances',
 ]
 
 MIDDLEWARE = [
