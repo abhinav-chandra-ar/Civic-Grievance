@@ -7,7 +7,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
 from .models import CustomUser
-from .serializers import RegisterSerializer, MeSerializer
+from .serializers import RegisterSerializer, MeSerializer, ProfileUpdateSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -21,6 +21,16 @@ class MeView(APIView):
     def get(self, request):
         serializer = MeSerializer(request.user)
         return Response(serializer.data)
+
+    def patch(self, request):
+        serializer = ProfileUpdateSerializer(
+            request.user,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(MeSerializer(request.user).data)
 
 
 class GoogleLoginView(APIView):

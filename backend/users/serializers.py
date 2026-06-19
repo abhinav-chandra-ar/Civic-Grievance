@@ -15,7 +15,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
-
         return user
 
 
@@ -23,3 +22,9 @@ class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ["id", "email", "full_name", "phone", "role"]
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ["full_name", "phone"]
