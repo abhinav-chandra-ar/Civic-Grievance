@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import "../auth.css";
@@ -26,6 +26,45 @@ export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const googleBtnRef = useRef(null);
+
+  async function handleGoogleCredential(response) {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await axios.post("/api/auth/google/", { id_token: response.credential });
+      localStorage.setItem("access_token", res.data.access);
+      localStorage.setItem("refresh_token", res.data.refresh);
+      navigate("/dashboard");
+    } catch (err) {
+      if (!err.response) {
+        setError("Cannot reach server. Make sure the Django backend is running.");
+      } else {
+        setError(err.response.data?.error || "Google login failed.");
+      }
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      if (!window.google || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        width: googleBtnRef.current.offsetWidth,
+      });
+    };
+    document.body.appendChild(script);
+    return () => document.body.removeChild(script);
+  }, []);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -131,6 +170,16 @@ export default function Login() {
                 )}
               </button>
             </form>
+
+            {/* ── OR divider ── */}
+            <div style={{ display: "flex", alignItems: "center", margin: "20px 0 16px" }}>
+              <div style={{ flex: 1, height: 1, background: "#d1d5db" }} />
+              <span style={{ margin: "0 12px", fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>OR</span>
+              <div style={{ flex: 1, height: 1, background: "#d1d5db" }} />
+            </div>
+
+            {/* ── Google Sign-In button ── */}
+            <div ref={googleBtnRef} style={{ width: "100%" }} />
           </div>
 
           <div className="auth-footer-link">

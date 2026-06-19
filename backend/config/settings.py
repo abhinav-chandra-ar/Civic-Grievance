@@ -78,8 +78,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'civic_grievance',
+        'USER': 'civic_user',
+        'PASSWORD': 'civic1234',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -129,3 +133,6 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+
+# Google OAuth — replace with your actual Client ID from Google Cloud Console
+GOOGLE_CLIENT_ID = "218164401698-bi8ejcbeopotrm5je0stt8m3lc12vkv8.apps.googleusercontent.com"
