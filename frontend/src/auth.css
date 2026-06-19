@@ -13,6 +13,7 @@
 /* ── Full-page layout ── */
 .auth-page {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--gov-bg);

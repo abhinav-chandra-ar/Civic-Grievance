@@ -3,12 +3,6 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import "../auth.css";
 
-const ROLES = [
-  { value: "CITIZEN",        label: "Citizen" },
-  { value: "JUNIOR_OFFICER", label: "Junior Officer" },
-  { value: "SENIOR_OFFICER", label: "Senior Officer" },
-  { value: "ADMIN",          label: "Admin" },
-];
 
 const Emblem = () => (
   <svg className="gov-emblem" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -158,24 +152,15 @@ export default function Signup() {
               </div>
 
               <div className="mb-3">
-                <label htmlFor="role" className="form-label">
-                  User Category <span className="text-danger">*</span>
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  className="form-select"
-                  value={form.role}
-                  onChange={handleChange}
-                >
-                  {ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
+                <label className="form-label">User Category</label>
+                <input
+                  className="form-control"
+                  value="Citizen"
+                  disabled
+                  readOnly
+                />
                 <div className="form-text" style={{ fontSize: "12px", color: "#6b7280" }}>
-                  Select the category that applies to your role in the system.
+                  Public registration is open to citizens only. Officer accounts are created by administrators.
                 </div>
               </div>
 

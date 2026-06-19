@@ -8,24 +8,20 @@
 body {
   margin: 0;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  background: #edf1f7;
 }
 
 #root {
   min-height: 100vh;
-}
-
-/* ════════════════════════════════════
-   Dashboard styles (do not modify)
-   ════════════════════════════════════ */
-
-.dashboard-page {
-  min-height: 100vh;
-  background: #edf1f7;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
 }
+
+/* ════════════════════════════════════
+   Dashboard styles (do not modify)
+   ════════════════════════════════════ */
 
 .dashboard-container {
   background: #fff;
@@ -81,6 +77,20 @@ body {
   font-weight: 600;
   background: #ede9fe;
   color: #5b21b6;
+}
+
+/* Used by dashboard error state */
+.msg {
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.msg.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
 }
 
 .btn-logout {
