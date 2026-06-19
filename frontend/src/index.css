@@ -110,3 +110,55 @@ body {
   background: #dc2626;
   color: #fff;
 }
+
+/* ── Admin Quick Actions (appended for Module 2) ── */
+.quick-actions {
+  margin-bottom: 20px;
+}
+
+.quick-actions-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.btn-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 16px;
+  margin-bottom: 8px;
+  background: #fff;
+  color: #1a3a6b;
+  border: 1px solid #c8d0dc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-action:hover:not(:disabled) {
+  background: #e8eef7;
+  border-color: #1a3a6b;
+}
+
+.btn-action:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+.coming-soon {
+  font-size: 10px;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #9ca3af;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}

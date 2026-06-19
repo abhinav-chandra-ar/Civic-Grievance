@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'users',
+    'departments',
     'rest_framework',
     'corsheaders',
 ]
@@ -136,3 +137,11 @@ CORS_ALLOWED_ORIGINS = [
 
 # Google OAuth — replace with your actual Client ID from Google Cloud Console
 GOOGLE_CLIENT_ID = "218164401698-bi8ejcbeopotrm5je0stt8m3lc12vkv8.apps.googleusercontent.com"
+
+# JWT Configuration
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),  # Extended for development
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}

@@ -71,6 +71,21 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {user.role === "ADMIN" && (
+        <div className="quick-actions">
+          <p className="quick-actions-label">Admin Quick Actions</p>
+          <button className="btn-action" onClick={() => navigate("/admin/departments")}>
+            Manage Departments
+          </button>
+          <button className="btn-action" disabled>
+            Officer Management <span className="coming-soon">Coming Soon</span>
+          </button>
+          <button className="btn-action" disabled>
+            Reports <span className="coming-soon">Coming Soon</span>
+          </button>
+        </div>
+      )}
+
       <button className="btn-logout" onClick={handleLogout}>
         Logout
       </button>
