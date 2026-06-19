@@ -11,7 +11,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-
+        validated_data["role"] = CustomUser.Role.CITIZEN  # enforce: public signup = CITIZEN only
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
