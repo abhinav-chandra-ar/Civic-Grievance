@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'grievances',
+    'ml_engine',
 ]
 
 MIDDLEWARE = [
@@ -129,6 +130,10 @@ STATIC_URL = 'static/'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Local cache directory for HuggingFace model weights.
+# Models are downloaded here on first use and reused on subsequent runs.
+ML_MODELS_DIR = BASE_DIR / 'ml_models'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

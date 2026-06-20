@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 
@@ -5,13 +7,23 @@ from .models import Grievance
 from .serializers import GrievanceSerializer
 from .permissions import IsOwnerOrAdmin
 
+logger = logging.getLogger(__name__)
+
 
 class CreateGrievanceView(generics.CreateAPIView):
     serializer_class = GrievanceSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(citizen=self.request.user)
+        grievance = serializer.save(citizen=self.request.user)
+        try:
+            from ml_engine.pipeline import run_ml_pipeline
+            run_ml_pipeline(grievance)
+        except Exception:
+            logger.exception(
+                "ML pipeline failed for grievance #%s — grievance saved, ml_* fields blank",
+                grievance.id,
+            )
 
 
 class MyGrievancesView(generics.ListAPIView):
