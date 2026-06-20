@@ -1,5 +1,6 @@
 import logging
 
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from grievances.enums import GrievanceStatus
@@ -77,8 +78,21 @@ def transition_status(grievance, new_status: str, changed_by) -> None:
             )
 
     old_status = grievance.status
+    now = timezone.now()
+
+    # Apply new status and lifecycle timestamps.
     grievance.status = new_status
-    grievance.save(update_fields=["status"])
+    grievance.last_status_change_at = now
+    update_fields = ["status", "last_status_change_at"]
+
+    if new_status == GrievanceStatus.RESOLVED:
+        grievance.resolved_at = now
+        update_fields.append("resolved_at")
+    elif new_status == GrievanceStatus.CLOSED:
+        grievance.closed_at = now
+        update_fields.append("closed_at")
+
+    grievance.save(update_fields=update_fields)
 
     GrievanceStatusLog.objects.create(
         grievance=grievance,
@@ -94,3 +108,7 @@ def transition_status(grievance, new_status: str, changed_by) -> None:
         new_status,
         changed_by,
     )
+
+    # Module 8 hook — timeline event + citizen notification (non-fatal).
+    from grievances.services.timeline_service import on_status_changed
+    on_status_changed(grievance, new_status, changed_by)

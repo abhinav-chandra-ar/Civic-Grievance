@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
     'users',
     'departments',
     'rest_framework',
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'grievances',
     'ml_engine',
     'routing',
+    'geolocation',
 ]
 
 MIDDLEWARE = [
@@ -82,7 +84,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
         'NAME': 'civic_grievance',
         'USER': 'civic_user',
         'PASSWORD': 'civic1234',
@@ -157,3 +159,21 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),  # Extended for development
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
+
+# ---------------------------------------------------------------------------
+# GeoDjango — Windows GDAL/GEOS library paths
+# Loaded from environment variables so the DLL version can be set per-machine.
+# After installing OSGeo4W, find the correct filenames with:
+#   dir C:\OSGeo4W\bin\gdal*.dll
+# Then add to your .env / system environment:
+#   GDAL_LIBRARY_PATH=C:\OSGeo4W\bin\gdal309.dll
+#   GEOS_LIBRARY_PATH=C:\OSGeo4W\bin\geos_c.dll
+# ---------------------------------------------------------------------------
+import os
+if os.name == 'nt':
+    _gdal = os.environ.get('GDAL_LIBRARY_PATH')
+    _geos = os.environ.get('GEOS_LIBRARY_PATH')
+    if _gdal:
+        GDAL_LIBRARY_PATH = _gdal
+    if _geos:
+        GEOS_LIBRARY_PATH = _geos

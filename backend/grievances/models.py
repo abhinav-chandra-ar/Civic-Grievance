@@ -1,10 +1,8 @@
 from django.db import models
-
-# Create your models here.
 from django.conf import settings
 
 from departments.models import Department
-from .enums import GrievanceStatus, GrievancePriority
+from .enums import GrievanceStatus, GrievancePriority, TimelineEventType, NotificationType
 
 
 class Grievance(models.Model):
@@ -159,6 +157,21 @@ class Grievance(models.Model):
         blank=True
     )
 
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    closed_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    last_status_change_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
     # Timestamps
 
     created_at = models.DateTimeField(
@@ -301,7 +314,113 @@ class ResolutionEvidence(models.Model):
         related_name="uploaded_evidence",
     )
     image = models.ImageField(upload_to="resolution_evidence/")
+    # Module 8 additions — before/after pair and officer notes
+    before_image = models.ImageField(
+        upload_to="resolution_evidence/before/",
+        null=True,
+        blank=True,
+    )
+    after_image = models.ImageField(
+        upload_to="resolution_evidence/after/",
+        null=True,
+        blank=True,
+    )
+    resolution_notes = models.TextField(blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Evidence for Grievance #{self.grievance_id}"
+
+
+# ---------------------------------------------------------------------------
+# Module 8 — Citizen Tracking, Notifications & Lifecycle Visibility
+# ---------------------------------------------------------------------------
+
+class GrievanceTimelineEvent(models.Model):
+    """Immutable ordered record of every notable lifecycle event on a grievance."""
+
+    grievance = models.ForeignKey(
+        Grievance,
+        on_delete=models.CASCADE,
+        related_name="timeline",
+    )
+    event_type = models.CharField(
+        max_length=30,
+        choices=TimelineEventType.choices,
+    )
+    description = models.TextField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="timeline_events_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Grievance #{self.grievance_id} — {self.event_type} at {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class Notification(models.Model):
+    """In-app notification delivered to a user about a grievance lifecycle event."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    grievance = models.ForeignKey(
+        Grievance,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    notification_type = models.CharField(
+        max_length=30,
+        choices=NotificationType.choices,
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Notification({self.notification_type}) → {self.user} [{'' if self.is_read else 'un'}read]"
+
+
+class ReopenRequest(models.Model):
+    """Citizen-submitted request to reopen a resolved grievance."""
+
+    grievance = models.ForeignKey(
+        Grievance,
+        on_delete=models.CASCADE,
+        related_name="reopen_requests",
+    )
+    reason = models.TextField()
+    photo = models.ImageField(
+        upload_to="reopen_requests/",
+        null=True,
+        blank=True,
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reopen_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"ReopenRequest for Grievance #{self.grievance_id} by {self.requested_by}"

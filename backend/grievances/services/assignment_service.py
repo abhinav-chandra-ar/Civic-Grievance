@@ -47,6 +47,11 @@ def assign_officer(grievance, officer, assigned_by) -> None:
 
     transition_status(grievance, GrievanceStatus.ASSIGNED, changed_by=assigned_by)
 
+    # Module 8 hook — officer-facing notification only; citizen notification and
+    # ASSIGNED timeline event are already written inside transition_status above.
+    from grievances.services.timeline_service import on_officer_assigned
+    on_officer_assigned(grievance, officer, assigned_by)
+
     logger.info(
         "Grievance #%s assigned to %s by %s",
         grievance.id, officer, assigned_by,
@@ -89,6 +94,12 @@ def reassign_officer(grievance, to_officer, changed_by, remarks: str = "") -> No
     grievance.assigned_officer = to_officer
     grievance.assigned_at = timezone.now()
     grievance.save(update_fields=["assigned_officer", "assigned_at"])
+
+    # Module 8 hook — REASSIGNED timeline event + citizen and officer notifications.
+    # Reassignment does not go through transition_status so this hook writes
+    # everything (timeline event + two notifications) itself.
+    from grievances.services.timeline_service import on_officer_reassigned
+    on_officer_reassigned(grievance, to_officer, changed_by)
 
     logger.info(
         "Grievance #%s reassigned from %s to %s by %s",

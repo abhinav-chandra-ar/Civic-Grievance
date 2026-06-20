@@ -5,10 +5,12 @@ from .views import (
     AssignOfficerView,
     CreateGrievanceView,
     GrievanceDetailView,
+    GrievanceTimelineView,
     MyGrievancesView,
     OfficerDashboardView,
     OfficerNoteListCreateView,
     ReassignOfficerView,
+    ReopenGrievanceView,
     ResolutionEvidenceListCreateView,
     UpdateStatusView,
 )
@@ -25,10 +27,14 @@ urlpatterns = [
     path("<int:pk>/status/", UpdateStatusView.as_view(), name="grievance-status"),
     path("<int:pk>/assignment-history/", AssignmentHistoryView.as_view(), name="grievance-assignment-history"),
 
-    # Officer notes & evidence (officer-only)
+    # Officer notes & evidence
     path("<int:pk>/notes/", OfficerNoteListCreateView.as_view(), name="grievance-notes"),
     path("<int:pk>/evidence/", ResolutionEvidenceListCreateView.as_view(), name="grievance-evidence"),
 
     # Officer dashboard
     path("officer/", OfficerDashboardView.as_view(), name="officer-dashboard"),
+
+    # Module 8 — Lifecycle visibility
+    path("<int:pk>/timeline/", GrievanceTimelineView.as_view(), name="grievance-timeline"),
+    path("<int:pk>/reopen/", ReopenGrievanceView.as_view(), name="grievance-reopen"),
 ]

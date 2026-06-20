@@ -4,8 +4,11 @@ from .models import (
     AssignmentHistory,
     Grievance,
     GrievanceStatusLog,
+    GrievanceTimelineEvent,
+    Notification,
     OfficerAssignment,
     OfficerNote,
+    ReopenRequest,
     ResolutionEvidence,
 )
 
@@ -46,3 +49,45 @@ class OfficerNoteAdmin(admin.ModelAdmin):
 class ResolutionEvidenceAdmin(admin.ModelAdmin):
     list_display = ("grievance", "uploaded_by", "uploaded_at")
     search_fields = ("grievance__id",)
+
+
+# ---------------------------------------------------------------------------
+# Module 8 admin registrations
+# ---------------------------------------------------------------------------
+
+@admin.register(GrievanceTimelineEvent)
+class GrievanceTimelineEventAdmin(admin.ModelAdmin):
+    list_display  = ("grievance", "event_type", "created_by", "created_at")
+    list_filter   = ("event_type",)
+    search_fields = ("grievance__id", "description")
+    readonly_fields = ("grievance", "event_type", "description", "created_by", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display  = ("user", "notification_type", "grievance", "is_read", "created_at")
+    list_filter   = ("notification_type", "is_read")
+    search_fields = ("user__email", "title", "grievance__id")
+    readonly_fields = (
+        "user", "grievance", "notification_type",
+        "title", "message", "is_read", "created_at",
+    )
+
+
+@admin.register(ReopenRequest)
+class ReopenRequestAdmin(admin.ModelAdmin):
+    list_display  = ("grievance", "requested_by", "created_at")
+    search_fields = ("grievance__id", "requested_by__email")
+    readonly_fields = ("grievance", "requested_by", "reason", "photo", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

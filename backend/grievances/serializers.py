@@ -1,11 +1,14 @@
 from rest_framework import serializers
 
-from .enums import GrievanceStatus
+from .enums import GrievanceStatus, NotificationType
 from .models import (
     AssignmentHistory,
     Grievance,
+    GrievanceTimelineEvent,
+    Notification,
     OfficerAssignment,
     OfficerNote,
+    ReopenRequest,
     ResolutionEvidence,
 )
 
@@ -96,7 +99,12 @@ class ResolutionEvidenceSerializer(serializers.ModelSerializer):
             "grievance",
             "uploaded_by",
             "uploaded_by_name",
+            # original single-image field (kept for backward compatibility)
             "image",
+            # Module 8 additions
+            "before_image",
+            "after_image",
+            "resolution_notes",
             "uploaded_at",
         )
         read_only_fields = (
@@ -106,6 +114,7 @@ class ResolutionEvidenceSerializer(serializers.ModelSerializer):
             "uploaded_by_name",
             "uploaded_at",
         )
+        # before_image, after_image, resolution_notes are writable by officers.
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +142,23 @@ class GrievanceSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     assignment = OfficerAssignmentSerializer(read_only=True)
+
+    # GPS coordinates — write-only, not stored on Grievance.
+    # Consumed in CreateGrievanceView.perform_create and popped before save().
+    latitude = serializers.FloatField(
+        write_only=True,
+        required=False,
+        min_value=8.0,
+        max_value=9.0,
+        help_text="WGS84 latitude (Trivandrum Corporation bounding box: 8.0 - 9.0).",
+    )
+    longitude = serializers.FloatField(
+        write_only=True,
+        required=False,
+        min_value=76.5,
+        max_value=77.5,
+        help_text="WGS84 longitude (Trivandrum Corporation bounding box: 76.5 - 77.5).",
+    )
 
     class Meta:
         model = Grievance
@@ -186,6 +212,27 @@ class GrievanceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Image size cannot exceed 5 MB.")
         return value
 
+    def validate(self, data):
+        lat  = data.get("latitude")
+        lng  = data.get("longitude")
+        ward = data.get("ward")
+
+        # Rule 1 — GPS coordinates must be provided as a complete pair.
+        if (lat is None) != (lng is None):
+            raise serializers.ValidationError(
+                "latitude and longitude must both be provided together."
+            )
+
+        # Rule 2 — Mandatory ward enforcement.
+        # At least one of GPS coordinates or a manual ward FK must be present.
+        if lat is None and ward is None:
+            raise serializers.ValidationError(
+                "Ward is required. Provide GPS coordinates (latitude + longitude) "
+                "or select a ward manually."
+            )
+
+        return data
+
 
 # ---------------------------------------------------------------------------
 # Action-specific input serializers
@@ -202,3 +249,92 @@ class ReassignOfficerSerializer(serializers.Serializer):
 
 class StatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=GrievanceStatus.choices)
+
+
+# ---------------------------------------------------------------------------
+# Module 8 serializers
+# ---------------------------------------------------------------------------
+
+class GrievanceTimelineEventSerializer(serializers.ModelSerializer):
+    """Read-only view of a single lifecycle event on a grievance timeline."""
+
+    created_by_name = serializers.CharField(
+        source="created_by.full_name",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = GrievanceTimelineEvent
+        fields = (
+            "id",
+            "event_type",
+            "description",
+            "created_by",
+            "created_by_name",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """
+    Citizen/officer notification.
+    `is_read` is the only writable field — updated via the
+    POST /api/notifications/{id}/read/ endpoint (Phase 3).
+    """
+
+    class Meta:
+        model = Notification
+        fields = (
+            "id",
+            "grievance",
+            "notification_type",
+            "title",
+            "message",
+            "is_read",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "grievance",
+            "notification_type",
+            "title",
+            "message",
+            "created_at",
+        )
+        # is_read is intentionally writable so the read endpoint can flip it.
+
+
+class ReopenRequestSerializer(serializers.ModelSerializer):
+    """
+    Citizen-submitted reopen request.
+    `reason` is required; `photo` is optional.
+    `grievance`, `requested_by`, and `created_at` are set by the view.
+    """
+
+    requested_by_name = serializers.CharField(
+        source="requested_by.full_name",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = ReopenRequest
+        fields = (
+            "id",
+            "grievance",
+            "reason",
+            "photo",
+            "requested_by",
+            "requested_by_name",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "grievance",
+            "requested_by",
+            "requested_by_name",
+            "created_at",
+        )
+        # reason and photo are writable; photo is optional (model allows null).

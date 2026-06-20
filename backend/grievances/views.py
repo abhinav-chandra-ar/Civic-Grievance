@@ -1,22 +1,27 @@
 import logging
 
+from django.conf import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.models import CustomUser
 from .enums import GrievanceStatus
-from .models import Grievance, OfficerNote, ResolutionEvidence
+from .models import Grievance, GrievanceTimelineEvent, Notification, OfficerNote, ReopenRequest, ResolutionEvidence
 from .permissions import IsOfficer, IsOwnerOrAdmin, IsSeniorOfficerOrAdmin
 from .serializers import (
     AssignmentHistorySerializer,
     AssignOfficerSerializer,
     GrievanceSerializer,
+    GrievanceTimelineEventSerializer,
+    NotificationSerializer,
     OfficerNoteSerializer,
     ReassignOfficerSerializer,
+    ReopenRequestSerializer,
     ResolutionEvidenceSerializer,
     StatusUpdateSerializer,
 )
@@ -33,7 +38,69 @@ class CreateGrievanceView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        grievance = serializer.save(citizen=self.request.user)
+        from geolocation.models import GeolocationLog
+        from geolocation.service import detect_ward
+
+        # ------------------------------------------------------------------
+        # Step 1 — Extract GPS coordinates from validated_data.
+        # Pop them so they are not passed to Grievance.objects.create().
+        # ------------------------------------------------------------------
+        lat = serializer.validated_data.pop("latitude", None)
+        lng = serializer.validated_data.pop("longitude", None)
+        ward_from_body = serializer.validated_data.get("ward")
+
+        # ------------------------------------------------------------------
+        # Step 2 — GPS detection (only if coordinates were provided).
+        # ------------------------------------------------------------------
+        detected_ward    = None
+        detection_method = None
+
+        if lat is not None and lng is not None:
+            detected_ward = detect_ward(lat, lng)
+            detection_method = (
+                GeolocationLog.DetectionMethod.GPS_AUTO
+                if detected_ward
+                else GeolocationLog.DetectionMethod.MANUAL_FALLBACK
+            )
+
+        # ------------------------------------------------------------------
+        # Step 3 — Resolve final ward.
+        # GPS takes priority; manual ward FK is the fallback.
+        # ------------------------------------------------------------------
+        if detected_ward:
+            resolved_ward = detected_ward
+        else:
+            resolved_ward    = ward_from_body
+            detection_method = GeolocationLog.DetectionMethod.MANUAL_FALLBACK
+
+        # GPS was provided but landed outside all ward boundaries, and no
+        # manual ward was supplied — reject so no unroutable grievance is saved.
+        if resolved_ward is None:
+            raise ValidationError(
+                "GPS coordinates are outside all known ward boundaries. "
+                "Please select your ward manually."
+            )
+
+        # ------------------------------------------------------------------
+        # Step 4 — Save grievance with the resolved ward.
+        # ------------------------------------------------------------------
+        grievance = serializer.save(citizen=self.request.user, ward=resolved_ward)
+
+        # ------------------------------------------------------------------
+        # Step 5 — Write audit log (only when GPS coordinates were submitted).
+        # ------------------------------------------------------------------
+        if lat is not None:
+            GeolocationLog.objects.create(
+                grievance=grievance,
+                submitted_lat=lat,
+                submitted_lng=lng,
+                detected_ward=detected_ward,
+                detection_method=detection_method,
+            )
+
+        # ------------------------------------------------------------------
+        # Step 6 — ML pipeline (unchanged).
+        # ------------------------------------------------------------------
         try:
             from ml_engine.pipeline import run_ml_pipeline
             run_ml_pipeline(grievance)
@@ -42,12 +109,29 @@ class CreateGrievanceView(generics.CreateAPIView):
                 "ML pipeline failed for grievance #%s -- grievance saved, ml_* fields blank",
                 grievance.id,
             )
+
+        # ------------------------------------------------------------------
+        # Step 7 — Routing service (unchanged).
+        # ------------------------------------------------------------------
         try:
             from routing.service import run_routing
             run_routing(grievance)
         except Exception:
             logger.exception(
                 "Routing failed for grievance #%s -- department and jurisdiction not assigned",
+                grievance.id,
+            )
+
+        # ------------------------------------------------------------------
+        # Step 8 — Module 8: SUBMITTED timeline event + notification.
+        # Non-fatal: timeline failure must not roll back the saved grievance.
+        # ------------------------------------------------------------------
+        try:
+            from grievances.services.timeline_service import on_grievance_submitted
+            on_grievance_submitted(grievance)
+        except Exception:
+            logger.exception(
+                "Timeline/notification failed for grievance #%s -- grievance already saved",
                 grievance.id,
             )
 
@@ -265,17 +349,180 @@ class OfficerNoteListCreateView(generics.ListCreateAPIView):
 class ResolutionEvidenceListCreateView(generics.ListCreateAPIView):
     """
     GET  /api/grievances/<pk>/evidence/
+        - Citizen: own grievance only.
+        - Officer / Admin: any grievance.
     POST /api/grievances/<pk>/evidence/
-    Officer only.
+        - Officer / Admin only.
     """
     serializer_class = ResolutionEvidenceSerializer
-    permission_classes = [IsOfficer]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsOfficer()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
+        grievance = get_object_or_404(Grievance, pk=self.kwargs["pk"])
+        user = self.request.user
+
+        # Citizens may only view evidence for their own grievance.
+        if user.role not in ("JUNIOR_OFFICER", "SENIOR_OFFICER", "ADMIN"):
+            if grievance.citizen != user:
+                raise PermissionDenied(
+                    "You can only view evidence for your own grievance."
+                )
+
         return ResolutionEvidence.objects.filter(
-            grievance_id=self.kwargs["pk"]
+            grievance=grievance
         ).order_by("uploaded_at")
 
     def perform_create(self, serializer):
         grievance = get_object_or_404(Grievance, pk=self.kwargs["pk"])
         serializer.save(grievance=grievance, uploaded_by=self.request.user)
+
+        # Module 8: EVIDENCE_UPLOADED timeline event + citizen notification.
+        from grievances.services.timeline_service import on_evidence_uploaded
+        on_evidence_uploaded(grievance, self.request.user)
+
+
+# ---------------------------------------------------------------------------
+# Module 8 — Notifications
+# ---------------------------------------------------------------------------
+
+class NotificationListView(generics.ListAPIView):
+    """
+    GET /api/notifications/
+    Returns the authenticated user's own notifications, newest first.
+    Supports ?unread=true to filter unread only.
+    """
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Notification.objects.filter(user=self.request.user)
+        if self.request.query_params.get("unread") == "true":
+            qs = qs.filter(is_read=False)
+        return qs.order_by("-created_at")
+
+
+class NotificationReadView(APIView):
+    """
+    POST /api/notifications/{id}/read/
+    Marks the notification as read.  Users may only update their own notifications.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk)
+
+        if notification.user != request.user:
+            raise PermissionDenied("You can only mark your own notifications as read.")
+
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
+        return Response(NotificationSerializer(notification).data, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Module 8 — Timeline
+# ---------------------------------------------------------------------------
+
+class GrievanceTimelineView(generics.ListAPIView):
+    """
+    GET /api/grievances/{id}/timeline/
+    Returns the ordered lifecycle event log for a grievance.
+
+    Citizen: own grievances only.
+    Officer / Admin: any grievance accessible under existing rules.
+    """
+    serializer_class = GrievanceTimelineEventSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        grievance = get_object_or_404(Grievance, pk=self.kwargs["pk"])
+        user = self.request.user
+
+        if user.role not in ("JUNIOR_OFFICER", "SENIOR_OFFICER", "ADMIN"):
+            if grievance.citizen != user:
+                raise PermissionDenied(
+                    "You can only view the timeline for your own grievances."
+                )
+
+        return GrievanceTimelineEvent.objects.filter(
+            grievance=grievance
+        ).order_by("created_at")
+
+
+# ---------------------------------------------------------------------------
+# Module 8 — Reopen
+# ---------------------------------------------------------------------------
+
+class ReopenGrievanceView(APIView):
+    """
+    POST /api/grievances/{id}/reopen/
+    Body: { "reason": "...", "photo": <file> (optional) }
+
+    Rules enforced:
+      • Caller must be the grievance owner.
+      • Grievance must currently be RESOLVED.
+      • Request must arrive within settings.GRIEVANCE_REOPEN_WINDOW_DAYS
+        (default 7) of resolution.
+
+    On success:
+      • ReopenRequest record created.
+      • reopen_count incremented; last_reopened_at stamped.
+      • transition_status(REOPENED) called — which triggers the existing
+        workflow hook (on_status_changed) writing the REOPENED timeline event
+        and citizen notification automatically.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        grievance = get_object_or_404(Grievance, pk=pk)
+
+        # --- Ownership check ---
+        if grievance.citizen != request.user:
+            raise PermissionDenied("Only the grievance owner may request a reopen.")
+
+        # --- Status check ---
+        if grievance.status != GrievanceStatus.RESOLVED:
+            raise ValidationError(
+                {"detail": "Only resolved grievances can be reopened."}
+            )
+
+        # --- Reopen window check ---
+        reopen_window_days = getattr(settings, "GRIEVANCE_REOPEN_WINDOW_DAYS", 7)
+        # Use resolved_at when set (post-Phase 2 transitions); fall back to
+        # updated_at for grievances resolved before the new field was added.
+        reference_date = grievance.resolved_at or grievance.updated_at
+        elapsed_days = (timezone.now() - reference_date).days
+        if elapsed_days > reopen_window_days:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"The reopen window has expired. Grievances may only be "
+                        f"reopened within {reopen_window_days} days of resolution."
+                    )
+                }
+            )
+
+        # --- Validate request body ---
+        serializer = ReopenRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # --- Persist ReopenRequest ---
+        serializer.save(grievance=grievance, requested_by=request.user)
+
+        # --- Update reopen tracking counters ---
+        grievance.reopen_count += 1
+        grievance.last_reopened_at = timezone.now()
+        grievance.save(update_fields=["reopen_count", "last_reopened_at"])
+
+        # --- Transition status (RESOLVED → REOPENED).
+        # transition_status validates the move, writes GrievanceStatusLog,
+        # stamps last_status_change_at, and calls on_status_changed which
+        # creates the REOPENED timeline event and citizen notification. ---
+        from grievances.services.workflow_service import transition_status
+        transition_status(grievance, GrievanceStatus.REOPENED, changed_by=request.user)
+
+        return Response(GrievanceSerializer(grievance).data, status=status.HTTP_200_OK)
