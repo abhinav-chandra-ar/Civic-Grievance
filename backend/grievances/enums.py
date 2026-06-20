@@ -32,6 +32,10 @@ class TimelineEventType(models.TextChoices):
     REOPENED            = "REOPENED",            "Reopened"
     REJECTED            = "REJECTED",            "Rejected"
     EVIDENCE_UPLOADED   = "EVIDENCE_UPLOADED",   "Evidence Uploaded"
+    # Module 9 — SLA events
+    SLA_REMINDER        = "SLA_REMINDER",        "SLA Reminder"
+    SLA_BREACHED        = "SLA_BREACHED",        "SLA Breached"
+    SLA_ESCALATED       = "SLA_ESCALATED",       "SLA Escalated"
 
 
 class NotificationType(models.TextChoices):
@@ -43,3 +47,7 @@ class NotificationType(models.TextChoices):
     CLOSED              = "CLOSED",              "Closed"
     REOPENED            = "REOPENED",            "Reopened"
     EVIDENCE_UPLOADED   = "EVIDENCE_UPLOADED",   "Evidence Uploaded"
+    # Module 9 — SLA notifications
+    SLA_REMINDER        = "SLA_REMINDER",        "SLA Reminder"
+    SLA_BREACHED        = "SLA_BREACHED",        "SLA Breached"
+    SLA_ESCALATED       = "SLA_ESCALATED",       "SLA Escalated"

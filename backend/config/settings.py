@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'ml_engine',
     'routing',
     'geolocation',
+    'sla',
 ]
 
 MIDDLEWARE = [
@@ -161,19 +162,35 @@ SIMPLE_JWT = {
 }
 
 # ---------------------------------------------------------------------------
+# Module 9 — SLA Management
+# Default resolution deadlines by priority level.
+# Used when no SLAPolicy record exists in the database.
+# ---------------------------------------------------------------------------
+SLA_DEFAULT_HOURS = {
+    "CRITICAL": 24,
+    "HIGH":     48,
+    "MEDIUM":   72,
+    "LOW":      120,
+}
+
+# Hours after SLA breach before each escalation notification is sent.
+# L1 = assigned officer notified (at breach, 0 h delay).
+# L2 = senior officer in the department notified.
+# L3 = department admin notified.
+SLA_ESCALATION_L2_HOURS = 4
+SLA_ESCALATION_L3_HOURS = 8
+
+# ---------------------------------------------------------------------------
 # GeoDjango — Windows GDAL/GEOS library paths
-# Loaded from environment variables so the DLL version can be set per-machine.
-# After installing OSGeo4W, find the correct filenames with:
-#   dir C:\OSGeo4W\bin\gdal*.dll
-# Then add to your .env / system environment:
-#   GDAL_LIBRARY_PATH=C:\OSGeo4W\bin\gdal309.dll
-#   GEOS_LIBRARY_PATH=C:\OSGeo4W\bin\geos_c.dll
+# Env var takes priority; falls back to the known PostgreSQL 17 bundled DLLs.
 # ---------------------------------------------------------------------------
 import os
 if os.name == 'nt':
-    _gdal = os.environ.get('GDAL_LIBRARY_PATH')
-    _geos = os.environ.get('GEOS_LIBRARY_PATH')
-    if _gdal:
-        GDAL_LIBRARY_PATH = _gdal
-    if _geos:
-        GEOS_LIBRARY_PATH = _geos
+    GDAL_LIBRARY_PATH = os.environ.get(
+        'GDAL_LIBRARY_PATH',
+        r'C:\Program Files\PostgreSQL\17\bin\libgdal-35.dll',
+    )
+    GEOS_LIBRARY_PATH = os.environ.get(
+        'GEOS_LIBRARY_PATH',
+        r'C:\Program Files\PostgreSQL\17\bin\libgeos_c.dll',
+    )

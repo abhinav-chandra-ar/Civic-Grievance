@@ -112,3 +112,27 @@ def transition_status(grievance, new_status: str, changed_by) -> None:
     # Module 8 hook — timeline event + citizen notification (non-fatal).
     from grievances.services.timeline_service import on_status_changed
     on_status_changed(grievance, new_status, changed_by)
+
+    # Module 9 hook — SLA lifecycle (non-fatal).
+    if new_status in (
+        GrievanceStatus.RESOLVED,
+        GrievanceStatus.CLOSED,
+        GrievanceStatus.REJECTED,
+    ):
+        try:
+            from sla.services.sla_service import close_grievance_sla
+            close_grievance_sla(grievance, new_status)
+        except Exception:
+            logger.exception(
+                "SLA close failed for Grievance #%s — status change unaffected",
+                grievance.id,
+            )
+    elif new_status == GrievanceStatus.REOPENED:
+        try:
+            from sla.services.sla_service import supersede_grievance_sla
+            supersede_grievance_sla(grievance)
+        except Exception:
+            logger.exception(
+                "SLA supersede failed for Grievance #%s — status change unaffected",
+                grievance.id,
+            )

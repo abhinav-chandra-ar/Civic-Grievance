@@ -52,6 +52,18 @@ def assign_officer(grievance, officer, assigned_by) -> None:
     from grievances.services.timeline_service import on_officer_assigned
     on_officer_assigned(grievance, officer, assigned_by)
 
+    # Module 9 hook — SLA creation (non-fatal).
+    # Skipped automatically if an ACTIVE/BREACHED SLA already exists
+    # (handles ESCALATED → ASSIGNED re-assignment without resetting the clock).
+    try:
+        from sla.services.sla_service import create_grievance_sla
+        create_grievance_sla(grievance)
+    except Exception:
+        logger.exception(
+            "SLA creation failed for Grievance #%s — assignment unaffected",
+            grievance.id,
+        )
+
     logger.info(
         "Grievance #%s assigned to %s by %s",
         grievance.id, officer, assigned_by,
