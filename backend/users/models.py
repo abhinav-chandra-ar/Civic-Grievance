@@ -21,6 +21,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default=Role.CITIZEN
     )
 
+    department = models.ForeignKey(
+        "departments.Department",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="officers",
+    )
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 

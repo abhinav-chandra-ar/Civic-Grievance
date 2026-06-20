@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'grievances',
     'ml_engine',
+    'routing',
 ]
 
 MIDDLEWARE = [
@@ -128,7 +129,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Local cache directory for HuggingFace model weights.

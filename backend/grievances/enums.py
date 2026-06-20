@@ -1,14 +1,16 @@
 from django.db import models
 
+
 class GrievanceStatus(models.TextChoices):
     SUBMITTED = "SUBMITTED", "Submitted"
-    RECEIVED = "RECEIVED", "Received"
-    PROCESSING = "PROCESSING", "Processing"
-    ESCALATED = "ESCALATED", "Escalated"
+    ASSIGNED = "ASSIGNED", "Assigned"
+    IN_PROGRESS = "IN_PROGRESS", "In Progress"
+    PENDING_FIELD_VISIT = "PENDING_FIELD_VISIT", "Pending Field Visit"
     RESOLVED = "RESOLVED", "Resolved"
-    REJECTED = "REJECTED", "Rejected"
-    REOPENED = "REOPENED", "Reopened"
     CLOSED = "CLOSED", "Closed"
+    REOPENED = "REOPENED", "Reopened"
+    ESCALATED = "ESCALATED", "Escalated"
+    REJECTED = "REJECTED", "Rejected"
 
 
 class GrievancePriority(models.TextChoices):
